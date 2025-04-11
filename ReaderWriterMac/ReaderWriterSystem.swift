@@ -374,12 +374,22 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
 
     /// request a read operation for the specified id
     ///
-    /// does not return until the read is activer (i.e, their turn in queue and no writers active)
+    /// does not return until the read is active (i.e, their turn in queue and no writers active)
     ///
     /// - Parameter id: id that wants to read
     private func requestRead(id: ID) async throws {
-#warning("implement this method")
+        
+        queue.append(.read(id: id))
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            //done instantly
+            readRequestContinuations[id] = continuation //order matters here
 
+            processQueue()
+            
+
+            
+        }
     }
 
     /// performs a read for the specified ID
@@ -420,13 +430,26 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     ///   - id: id that wants to write/update
     ///   - value: if a write, the value that is being written (value is ignored if an update)
     ///   - isUpdate: true if the request is for an update, false if a write
+    
     private func requestWriteOrUpdate(
-        id: ID, value: Value, isUpdate: Bool = false
-    )
-        async throws
+        id: ID, value: Value, isUpdate: Bool = false ) async throws
     {
-#warning("implement this method")
-
+        queue.append(.write(id: id, value: value))
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            //done instantly
+            writeRequestContinuations[id] = continuation //order matters here
+            
+            if activeSet.isEmpty {
+                continuation.resume()
+            }
+            
+            processQueue()
+            
+            
+            
+        }
+        
     }
 
     /// performs a write for the specified ID
@@ -488,7 +511,24 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     /// a read can be let in when there is not an active write/update
     /// a write or update can only be let in when there are active reads or write/update operations
     private func processQueue() {
-#warning("implement this method")
+        
+        while !isWriting {
+            let first = queue.removeFirst()
+            
+            switch first {
+                
+            case .read(id: let id):
+                activeSet.insert(.read(id: id))
+                
+            case .write(id: let id, value: let value):
+                activeSet.insert(.write(id: id, value: value))
+                isWriting.toggle()
+                
+            case .update(id: let id):
+                activeSet.insert(.update(id: id))
+                isWriting.toggle()
+            }
+        }
 
         // update UI when done processing queue
         ui?.update(snapshot: snapshot())
@@ -500,7 +540,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     private var isWriting: Bool = false
 
     /// set of active ReadWrite in system (zero or more readers or just one write/update)
-    private var activeSet: Set<ReadWrite<ID, Value>> = []
+    private var activeSet: Set<ReadWrite<ID, Value>> = [] // only have inf readers or 1 writer
     private var numActive: Int { activeSet.count }
 
     /// FIFO queue of ReadWrite objects waiting to enter system
