@@ -37,13 +37,13 @@ public protocol UIUpdater<ID, Value>: AnyObject {
 
 @available(iOS 17, macOS 14, *)
 public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
-
+    
     /// snapshot of the system to send to UI for displaying
     public struct Snapshot: Sendable {
         let value: Value
         let activeSet: Set<ReadWrite<ID, Value>>
         let queue: [ReadWrite<ID, Value>]
-
+        
         /// create the snapshot
         /// - Parameters:
         ///   - value: current value
@@ -58,63 +58,63 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
             self.activeSet = activeSet
             self.queue = queue
         }
-
+        
         /// the ID values of the active read/write/update operations
         var activeIDs: Set<ID> {
             Set(activeSet.map { $0.id })
         }
-
+        
         /// the ID values of the queued read/write/update operations
         var queuedIDs: Set<ID> {
             Set(queue.map { $0.id })
         }
-
+        
         /// the ID values of the actived or queued read/write/update operations
         var activeOrQueuedIDs: Set<ID> {
             activeIDs.union(queuedIDs)
         }
-
-        #if canImport(SwiftUI)
-            /// view with SwiftUI Button for each active read/write/update
-            /// - Parameter system: system it is in so can call finishOperation
-            /// - Returns: HStack with the Button for each item in activeSet
-            @available(iOS 17, macOS 14, *)
-            @MainActor
-            @ViewBuilder func activeSetButtons(system: ReaderWriterSystem)
-                -> some View
-            {
-                let items = activeSet.sorted()
-                HStack {
-                    ForEach(items) { rw in
-                        rw.button(active: true) {
-                            rw.finishOperation(system: system)
-                        }
+        
+#if canImport(SwiftUI)
+        /// view with SwiftUI Button for each active read/write/update
+        /// - Parameter system: system it is in so can call finishOperation
+        /// - Returns: HStack with the Button for each item in activeSet
+        @available(iOS 17, macOS 14, *)
+        @MainActor
+        @ViewBuilder func activeSetButtons(system: ReaderWriterSystem)
+        -> some View
+        {
+            let items = activeSet.sorted()
+            HStack {
+                ForEach(items) { rw in
+                    rw.button(active: true) {
+                        rw.finishOperation(system: system)
                     }
                 }
             }
-
-            /// View showing Text for each item in the queue
-            /// - Returns: HStack with Text for each item in queue
-            @available(iOS 17, macOS 14, *)
-            @MainActor
-            @ViewBuilder func queueView() -> some View {
-                HStack {
-                    ForEach(queue) { rw in
-                        rw.text()
-                    }
+        }
+        
+        /// View showing Text for each item in the queue
+        /// - Returns: HStack with Text for each item in queue
+        @available(iOS 17, macOS 14, *)
+        @MainActor
+        @ViewBuilder func queueView() -> some View {
+            HStack {
+                ForEach(queue) { rw in
+                    rw.text()
                 }
             }
-        #endif
+        }
+#endif
     }
-
+    
     public var value: Value
     public var ui: (any UIUpdater<ID, Value>)?
-
+    
     public init(value: Value, ui: (any UIUpdater<ID, Value>)? = nil) {
         self.value = value
         self.ui = ui
     }
-
+    
     deinit {
         for (id, continuation) in readRequestContinuations {
             readRequestContinuations.removeValue(forKey: id)
@@ -133,7 +133,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
             continuation.resume(throwing: CancellationError())
         }
     }
-
+    
     /// returns a Snapshot indicating the current value, active readers/writer, and waiting queue
     ///
     /// can be used to update UI or for a test to validate state
@@ -141,7 +141,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     public func snapshot() -> Snapshot {
         Snapshot(value: value, activeSet: activeSet, queue: queue)
     }
-
+    
     /// sets the UI object to be called with snapshot and logging information and immediately calls
     /// it with the current state; other methods should call it when the activeSet/queue update
     /// - Parameter ui: delegate object
@@ -149,14 +149,14 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
         self.ui = ui
         ui.update(snapshot: snapshot())
     }
-
+    
     /// returns the Set of ReadWrite IDs that are in progress (active or waiting in queue) as
     ///  they should not start new ReadWrite operations until their existing one is complete
     /// - Returns: Set of active/waiting IDs in the system
     public func disabledIDs() -> Set<ID> {
         return Set(activeSet.map { $0.id }).union(queue.map { $0.id })
     }
-
+    
     /// logs the message for tracking progress of system
     ///
     /// uses Logger (on supported) platforms or print on platforms without Logger
@@ -170,13 +170,13 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
             )
         let message = formatter.format(Date.now) + ": " + message
         ui?.log(message)
-        #if canImport(OSLog)
-            Logger.status.info("\(message)")
-        #else
-            print(message)
-        #endif
+#if canImport(OSLog)
+        Logger.status.info("\(message)")
+#else
+        print(message)
+#endif
     }
-
+    
     /// sets a ReadWrite operation that is actively reading/writing to complete
     ///
     /// precondition: the rw operation is in the activeSet (i.e., it has gotten past the request phase) and
@@ -193,7 +193,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
             writeOrUpdateFinished(id: id)
         }
     }
-
+    
     /// sets a ReadWrite operation that is actively reading/writing to complete
     ///
     /// precondition: the rw operation is in the activeSet (i.e., it has gotten past the request phase) and
@@ -214,7 +214,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
         }
         return false
     }
-
+    
     /// sets a random ReadWrite operation that is actively reading/writing to complete
     ///
     /// postcondition: a random ReadWrite operation is set to complete
@@ -228,7 +228,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
         }
         return false
     }
-
+    
     /// completes all the ReadWrite operations that are actively reading/writing
     ///
     /// postcondition: a random ReadWrite operation is set to complete
@@ -237,7 +237,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
             completeRW(rw)
         }
     }
-
+    
     /// performs a read for the specified ID
     ///
     /// if duration is not nil, the read takes that long to complete - use:
@@ -256,22 +256,22 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     public func read(id: ID, duration: Duration? = nil) async throws -> Value {
         precondition(
             !disabledIDs().contains(id), "ID \(id) is in currently in use")
-
+        
         logMessage("id: \(id) requesting read")
-
+        
         // wait for request to be approved
         try await requestRead(id: id)
-
+        
         // perform the read when we are allowed
         logMessage("id: \(id) start read")
         let value = try await actualRead(id: id, duration: duration)
         logMessage("id: \(id) finished read with \(value)")
-
+        
         // complete the read by updating activeSet and queue
         completeRead(id: id)
         return value
     }
-
+    
     /// performs a write for the specified ID
     ///
     /// if duration is not nil, the write takes that long to complete
@@ -289,25 +289,25 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     /// - Returns: the value that was written
     @discardableResult
     public func write(id: ID, value: Value, duration: Duration? = nil)
-        async throws -> Value
+    async throws -> Value
     {
         precondition(
             !disabledIDs().contains(id), "ID \(id) is in currently in use")
-
+        
         logMessage("id: \(id) requesting to write \(value)")
         // wait for request to be approved
         try await requestWriteOrUpdate(id: id, value: value)
-
+        
         // now we can start writing
         logMessage("id: \(id) starting write of \(value)")
         try await actualWrite(id: id, value: value, duration: duration)
         logMessage("id: \(id) finished write of \(value)")
-
+        
         // use helper method to complete the write
         completeWriteOrUpdate(id: id, value: value)
         return value
     }
-
+    
     /// performs am update for the specified ID
     ///
     /// if duration is not nil, the update takes that long to complete
@@ -330,48 +330,77 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     ) async throws -> Value {
         precondition(
             !disabledIDs().contains(id), "ID \(id) is in currently in use")
-
+        
         logMessage("id: \(id) requesting to update")
         // wait for request to be approved
         try await requestWriteOrUpdate(id: id, value: value, isUpdate: true)
-
+        
         // now we can start the update
         let oldValue = self.value
         logMessage("id: \(id) starting update of \(value)")
         let newValue = try await actualUpdate(
             id: id, update: update, duration: duration)
         logMessage("id: \(id) finished update from \(oldValue) to \(newValue)")
-
+        
         // use helper method to complete the write
         completeWriteOrUpdate(id: id, value: value, isUpdate: true)
         return newValue
     }
-
+    
     // MARK: - student methods to implement
-
+    
     /// clears the system of any in progress operations (
     ///
     /// postcondition: all active and waiting operations are removed, ui?.update is called, and
     /// all active continuations are resumed by `throwing: CancellationError()`
     ///
     public func clearSystem() {
-        #warning("implement this method")
+        activeSet.removeAll()
+        queue.removeAll()
+        isWriting = false
+        
+        // clear all continuations
+        for (id, continuation) in writeFinishContinuations{
+            writeFinishContinuations.removeValue(forKey: id)
+            continuation.resume(throwing: CancellationError())
+        }
+        for (id, continuation) in readRequestContinuations{
+            readRequestContinuations.removeValue(forKey: id)
+            continuation.resume(throwing: CancellationError())
+        }
+        for (id, continuation) in readFinishContinuations{
+            readFinishContinuations.removeValue(forKey: id)
+            continuation.resume(throwing: CancellationError())
+        }
+        for (id, continuation) in writeFinishContinuations{
+            writeFinishContinuations.removeValue(forKey: id)
+            continuation.resume(throwing: CancellationError())
+        }
+        ui?.update(snapshot: snapshot())
+        
     }
-
+    
+    
     /// called when an active read is finished reading to indicate it should complete
     /// - Parameter id: id of read to complete
     func readFinished(id: ID) {
-#warning("implement this method")
-
+        if let continuation = readFinishContinuations[id] {
+            readFinishContinuations.removeValue(forKey: id)
+            continuation.resume()
+        }
     }
-
+    
     /// called when an active write/update is finished writing/updating to indicate it should complete
     /// - Parameter id: id of write or update to complete
     func writeOrUpdateFinished(id: ID) {
-#warning("implement this method")
-
+        isWriting = false
+        
+        if let continuation = writeFinishContinuations[id] {
+            writeFinishContinuations.removeValue(forKey: id)
+            continuation.resume()
+        }
     }
-
+    
     /// request a read operation for the specified id
     ///
     /// does not return until the read is active (i.e, their turn in queue and no writers active)
@@ -384,14 +413,11 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
         return try await withCheckedThrowingContinuation { continuation in
             //done instantly
             readRequestContinuations[id] = continuation //order matters here
-
+            
             processQueue()
-            
-
-            
         }
     }
-
+    
     /// performs a read for the specified ID
     ///
     /// if duration is not nil, the read takes that long to complete - use:
@@ -405,10 +431,21 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     ///   - duration: optional duration of time that the read takes to complete
     /// - Returns: the value that was read
     private func actualRead(id: ID, duration: Duration?) async throws -> Value {
-#warning("implement this method")
-
+        
+        if let duration {
+            try await Task.sleep(for: duration)
+            return value
+        }
+        else {
+            try await withCheckedThrowingContinuation{ continuation in
+                readFinishContinuations[id] = continuation
+                
+            }
+            return value
+            
+        }
     }
-
+    
     /// complete the read for the specified id
     ///
     /// - Parameter id: id that is completing a read
@@ -417,7 +454,7 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
         // now potentially let in next item(s) from queue
         processQueue()
     }
-
+    
     /// request a write or update operation for the specified id
     ///
     /// does not return until the write/update is active (i.e, their turn in queue and
@@ -434,24 +471,20 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     private func requestWriteOrUpdate(
         id: ID, value: Value, isUpdate: Bool = false ) async throws
     {
-        queue.append(.write(id: id, value: value))
-        
+        if !isUpdate {
+            
+            queue.append(.write(id: id, value: value))
+        }
+        else {
+            queue.append(.update(id: id))
+        }
         return try await withCheckedThrowingContinuation { continuation in
             //done instantly
             writeRequestContinuations[id] = continuation //order matters here
-            
-            if activeSet.isEmpty {
-                continuation.resume()
-            }
-            
             processQueue()
-            
-            
-            
         }
-        
     }
-
+    
     /// performs a write for the specified ID
     ///
     /// if duration is not nil, the write takes that long to complete - use:
@@ -467,12 +500,20 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     /// - Returns: value (which was written)
     @discardableResult
     private func actualWrite(id: ID, value: Value, duration: Duration?)
-        async throws -> Value
-    {
-#warning("implement this method")
-
+    async throws -> Value
+    {   self.value = value
+        if let duration {
+            try await Task.sleep(for: duration)
+            return value
+        }
+        else {
+            try await withCheckedThrowingContinuation{ continuation in
+                writeFinishContinuations[id] = continuation
+            }
+            return value
+        }
     }
-
+    
     /// performs an update for the specified ID
     ///
     /// if duration is not nil, the update takes that long to complete - use:
@@ -489,8 +530,18 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     private func actualUpdate(
         id: ID, update: (Value) -> Value, duration: Duration? = nil
     ) async throws -> Value {
-#warning("implement this method")
-
+        
+        if let duration {
+            try await Task.sleep(for: duration)
+            return value
+        }
+        else {
+            try await withCheckedThrowingContinuation{ continuation in
+                writeFinishContinuations[id] = continuation
+            }
+            self.value = update(self.value)
+            return value
+        }
     }
 
     /// complete the write or update for the specified id
@@ -500,10 +551,18 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     ///   - isUpdate: true if operation was a wite or false if an update
     private func completeWriteOrUpdate(
         id: ID, value: Value, isUpdate: Bool = false
-    ) {
-#warning("implement this method")
+        ) {
+            if isUpdate{
+                activeSet.remove(.update(id: id))
+            }
+            else
+            {
+                activeSet.remove(.write(id: id, value: value))
+            }
+            isWriting = false
+            processQueue()
 
-    }
+        }
 
     /// process the waiting queue and let in all the ReadWrite operatons that can be active
     ///
@@ -511,27 +570,58 @@ public actor ReaderWriterSystem<ID: ReadWriteID, Value: ReadWriteValue> {
     /// a read can be let in when there is not an active write/update
     /// a write or update can only be let in when there are active reads or write/update operations
     private func processQueue() {
-        
-        while !isWriting {
-            let first = queue.removeFirst()
-            
-            switch first {
-                
-            case .read(id: let id):
-                activeSet.insert(.read(id: id))
-                
-            case .write(id: let id, value: let value):
-                activeSet.insert(.write(id: id, value: value))
-                isWriting.toggle()
-                
-            case .update(id: let id):
-                activeSet.insert(.update(id: id))
-                isWriting.toggle()
-            }
-        }
-
-        // update UI when done processing queue
         ui?.update(snapshot: snapshot())
+        while !isWriting && !queue.isEmpty {
+            ui?.update(snapshot: snapshot())
+            if let first = queue.first {
+                
+                switch first {
+                    
+                case .read(id: let id):
+                        queue.removeFirst()
+                        activeSet.insert(.read(id: id))
+                        if let cont = readRequestContinuations[id] {
+                            cont.resume()
+                            readRequestContinuations[id] = nil
+                            
+                            
+                    }
+                    
+                case .write(id: let id, value: let value):
+                    if activeSet.isEmpty {
+                        isWriting = true
+                        queue.removeFirst()
+                        activeSet.insert(.write(id: id, value: value))
+                        writeRequestContinuations[id]?.resume()
+                        writeRequestContinuations[id] = nil
+                       
+                    }
+                    else {
+                        return
+                    }
+                    
+                    
+                case .update(id: let id):
+                    if activeSet.isEmpty {
+                        isWriting = true
+                        queue.removeFirst()
+                        activeSet.insert(.update(id: id))
+                        writeRequestContinuations[id]?.resume()
+                        writeRequestContinuations[id] = nil
+                        
+                    }
+                    else {
+                        return
+                    }
+                    
+                    
+                }
+                
+            }
+            
+            // update UI when done processing queue
+            ui?.update(snapshot: snapshot())
+        }
     }
 
     /// whether or not there is a write/update active
